@@ -1,0 +1,167 @@
+#cloud-config
+packages:
+  - wireguard
+  - wireguard-tools
+  - unbound
+  - net-tools
+  - dnsutils
+  - nftables
+write_files:
+  - path: /etc/sysctl.d/hardened_config
+    content: |
+      # enable protected hard/sym links
+      fs.protected_hardlinks = 1
+      fs.protected_symlinks = 1
+      # disable SUID coredumps
+      fs.suid_dumpable = 0
+      # randomized VA space
+      kernel.randomize_va_space = 2
+  - path: /etc/wireguard/wg0.conf
+    content: |
+      [Interface]
+      Address = 172.16.0.1/24
+      SaveConfig = true
+      PrivateKey = WG_SERVER_PRIVATE_KEY
+      ListenPort = WG_PORT
+  - path: /etc/wireguard/wg0-client.conf
+    content: |
+      [Interface]
+      Address = 172.16.0.2/32
+      PrivateKey = WG_CLIENT_PRIVATE_KEY
+      DNS = 172.16.0.1
+
+      [Peer]
+      PublicKey = WG_SERVER_PUBLIC_KEY
+      Endpoint = DROPLET_IP:WG_PORT
+      AllowedIPs = 0.0.0.0/0, ::/0
+      PersistentKeepalive = 21
+  - path: /etc/unbound/unbound.conf.d/server.conf
+    content: |
+      server:
+        num-threads: 4
+        verbosity: 1
+        root-hints: '/var/lib/unbound/root.hints'
+        interface: 0.0.0.0
+        interface: ::0
+        max-udp-size: 3072
+        access-control: 0.0.0.0/0 refuse
+        access-control: 127.0.0.1/8 allow
+        access-control: 172.16.0.0/24 allow
+        private-address: 127.0.0.1/8
+        private-address: 172.16.0.0/24
+        hide-identity: yes
+        hide-version: yes
+        harden-glue: yes
+        harden-dnssec-stripped: yes
+        harden-referral-path: yes
+        do-ip4: yes
+        do-udp: yes
+        do-tcp: yes
+        unwanted-reply-threshold: 10000000
+        val-log-level: 1
+        cache-min-ttl: 1800
+        cache-max-ttl: 14400
+        prefetch: yes
+        prefetch-key: yes
+  - path: /etc/nftables.conf
+    content: |
+      #!/usr/sbin/nft -f
+
+      flush ruleset
+
+      define DEV_VPN = wg0
+      define DEV_WORLD = eth0
+      define IP_WORLD_V4 = DROPLET_IP
+      define PORT_VPN = WG_PORT
+      define DEV_LOCAL_NETS = { $DEV_VPN }
+      define DEV_OUT_NETS = { $DEV_WORLD }
+
+      table inet global {
+          chain inbound_world {
+              tcp dport { ssh } accept
+              udp dport { $PORT_VPN } accept
+          }
+          chain inbound_vpn {
+              icmp type echo-request limit rate 5/second accept
+              tcp dport { ssh, 53, 5353 } accept
+              udp dport { 53, 5353 } accept
+          }
+          chain inbound {
+              type filter hook input priority filter; policy drop;
+              ct state vmap { established : accept, related : accept, invalid : drop }
+              ct status dnat accept
+              iifname vmap { lo : accept, $DEV_WORLD : jump inbound_world, $DEV_VPN : jump inbound_vpn}
+          }
+          chain forward {
+              type filter hook forward priority filter; policy drop;
+              ct state vmap { established : accept, related : accept, invalid : drop }
+              ct status dnat accept
+              iifname $DEV_LOCAL_NETS oifname $DEV_OUT_NETS accept
+          }
+          chain postrouting {
+              type nat hook postrouting priority srcnat; policy accept;
+              iifname $DEV_LOCAL_NETS oifname $DEV_WORLD snat ip to $IP_WORLD_V4
+          }
+      }
+  - path: /root/wgconf/config.sh
+    content: |
+      #!/bin/bash
+
+      # Store the IP address of the machine
+      ipaddr=$(hostname -I | cut -d ' ' -f1)
+
+      ######################
+      # WireGuard
+      ######################
+      mkdir /root/wgconf
+      # Generate the private and public keys of the server
+      wg genkey | tee /root/wgconf/server_private_key | wg pubkey > /root/wgconf/server_public_key
+      wg_server_private_key=$(cat /root/wgconf/server_private_key | sed -e 's/[\/&]/\\&/g')
+      perl -p -i -e "s/WG_SERVER_PRIVATE_KEY/$wg_server_private_key/" /etc/wireguard/wg0.conf
+
+      # Setup necessary permission scheme and enable the service
+      chown -v root:root /etc/wireguard/wg0.conf
+      chmod -v 600 /etc/wireguard/wg0.conf
+      wg-quick up wg0
+      systemctl enable wg-quick@wg0.service
+
+      # Generate the private and public keys for the client to use
+      wg genkey | tee /root/wgconf/client_private_key | wg pubkey > /root/wgconf/client_public_key
+
+      # Set the necessary keys for the client configuratin in /etc/wireguard/wg0-client.conf
+      wg_client_private_key=$(cat /root/wgconf/client_private_key | sed -e 's/[\/&]/\\&/g')
+      perl -p -i -e "s/WG_CLIENT_PRIVATE_KEY/$wg_client_private_key/" /etc/wireguard/wg0-client.conf
+      wg_server_public_key=$(cat /root/wgconf/server_public_key | sed -e 's/[\/&]/\\&/g')
+      perl -p -i -e "s/WG_SERVER_PUBLIC_KEY/$wg_server_public_key/" /etc/wireguard/wg0-client.conf
+      sed -i "s/DROPLET_IP/$(echo $ipaddr)/" /etc/wireguard/wg0-client.conf
+
+      # Add the client IP to the WireGuard peers
+      wg set wg0 peer $(cat /root/wgconf/client_public_key) allowed-ips 172.16.0.2/32
+
+      ######################
+      # Unbound
+      ######################
+      curl -o /var/lib/unbound/root.hints https://www.internic.net/domain/named.cache
+      systemctl enable unbound
+      systemctl start unbound
+
+      ######################
+      # Forwarding rules and nftables configuration
+      ######################
+      sed -i "s/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/" /etc/sysctl.conf
+      sed -i "s/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/" /etc/sysctl.conf
+
+      # Apply the forwarding settings without reboot
+      sysctl -p
+
+      # Set the nftables configuration and enable the service
+      sed -i "s/DROPLET_IP/$(echo $ipaddr)/" /etc/nftables.conf
+      nft -f /etc/nftables.conf
+      systemctl enable nftables
+runcmd:
+  - "echo 'HISTFILESIZE=0' >> ~/.bashrc"
+  - "history -c"
+  - "history -w"
+  - "source ~/.bashrc"
+  - "chmod +x /root/wgconf/config.sh"
+  - "sh -c /root/wgconf/config.sh"
