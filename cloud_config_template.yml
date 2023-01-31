@@ -33,7 +33,7 @@ write_files:
       [Peer]
       PublicKey = WG_SERVER_PUBLIC_KEY
       Endpoint = DROPLET_IP:WG_PORT
-      AllowedIPs = 0.0.0.0/0, ::/0
+      AllowedIPs = 0.0.0.0/0
       PersistentKeepalive = 21
   - path: /etc/unbound/unbound.conf.d/server.conf
     content: |
@@ -149,7 +149,6 @@ write_files:
       # Forwarding rules and nftables configuration
       ######################
       sed -i "s/#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/" /etc/sysctl.conf
-      sed -i "s/#net.ipv6.conf.all.forwarding=1/net.ipv6.conf.all.forwarding=1/" /etc/sysctl.conf
 
       # Apply the forwarding settings without reboot
       sysctl -p
