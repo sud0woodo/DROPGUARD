@@ -168,7 +168,7 @@ def set_config(config_file: str = "cloud_config.yml", wg_port: str = "42069") ->
     """Set the WireGuard Port in the cloud-config file.
 
     Args:
-        cloud_config: The cloud-config YAML configuration to use.
+        config_file: The cloud-config YAML configuration to use.
         wg_port: The WireGuard port to configure.
     """
 
@@ -185,7 +185,7 @@ def create_droplet(config_file: str, port: str, name: str, region: str, size: st
     """Create the droplet with the given information.
 
     Args:
-        cloud_config: The cloud-config YAML configuration to use.
+        config_file: The cloud-config YAML configuration to use.
         port: The WireGuard port to configure.
         name: The name of the droplet.
         region: The region to use for the droplet.
