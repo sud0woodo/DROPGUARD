@@ -164,23 +164,6 @@ def droplet_status(droplet_id: str) -> dict:
             return res["droplet"]
 
 
-def set_config(config_file: str = "cloud_config.yml", wg_port: str = "42069") -> None:
-    """Set the WireGuard Port in the cloud-config file.
-
-    Args:
-        config_file: The cloud-config YAML configuration to use.
-        wg_port: The WireGuard port to configure.
-    """
-
-    with open(config_file, "r") as config_fh:
-        cloud_config = config_fh.read()
-
-    new_config = cloud_config.replace("WG_PORT", wg_port)
-
-    with open(config_file, "w") as config_fh:
-        config_fh.write(new_config)
-
-
 def create_droplet(config_file: str, port: str, name: str, region: str, size: str, ssh_keys: list, output: str) -> None:
     """Create the droplet with the given information.
 
@@ -198,11 +181,11 @@ def create_droplet(config_file: str, port: str, name: str, region: str, size: st
     """
 
     logging.info(f"setting cloud_config.yml")
-    set_config(config_file=config_file, wg_port=port)
-    logging.info("cloud_config.yml changed")
 
     with open("cloud_config.yml", "r") as config_fh:
         user_data = config_fh.read()
+
+    user_data = user_data.replace("WG_PORT", port)
 
     request_data = {
         "name": name,
