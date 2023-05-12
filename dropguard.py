@@ -25,8 +25,8 @@ Create a WireGuard VPN droplet with the name 'dropguard', adding SSH key with ID
 \tpython dropguard.py create --name dropguard --ssh-keys 12345678 --region fra1
 """
 
-
-TOKEN = ""
+# Set this as "Bearer DIGITALOCEAN_TOKEN"
+TOKEN = "Bearer dop_v1_d10f0247a18e89dfd82a2913a42dfd1129620c36c57bdbfac6c90971b13961ba"
 
 HEADERS = {"Authorization": TOKEN, "Content-Type": "application/json"}
 
@@ -114,7 +114,7 @@ def list_regions() -> None:
                 print(f"\t{field}: {info}")
 
 
-def config_status(ip: str, outfile: str) -> None:
+def config_status(ip: str, private_key: str, outfile: str) -> None:
     """Function to monitor the progress of the cloud-init script, retrieves the WireGuard configuration when the cloud-init is finished.
 
     Args:
@@ -131,7 +131,7 @@ def config_status(ip: str, outfile: str) -> None:
         time.sleep(10)
 
         try:
-            ssh_client.connect(hostname=ip, username="root")
+            ssh_client.connect(hostname=ip, username="root", key_filename=private_key)
         except paramiko.ssh_exception.NoValidConnectionsError:
             # The SSH server takes a little while to start on the Droplet
             continue
@@ -164,11 +164,10 @@ def droplet_status(droplet_id: str) -> dict:
             return res["droplet"]
 
 
-def create_droplet(config_file: str, port: str, name: str, region: str, size: str, ssh_keys: list, output: str) -> None:
+def create_droplet(port: str, name: str, region: str, size: str, ssh_keys: list, private_key: str, output: str) -> None:
     """Create the droplet with the given information.
 
     Args:
-        config_file: The cloud-config YAML configuration to use.
         port: The WireGuard port to configure.
         name: The name of the droplet.
         region: The region to use for the droplet.
@@ -215,11 +214,10 @@ def create_droplet(config_file: str, port: str, name: str, region: str, size: st
             break
 
     logging.info("checking cloud-config status")
-    config_status(ip=droplet_ip, outfile=output)
+    config_status(ip=droplet_ip, private_key=private_key, outfile=output)
 
 
 def main(args):
-
     if args.action == "list":
         try:
             if args.list_regions:
@@ -238,12 +236,12 @@ def main(args):
         logging.info("creating droplet")
         try:
             create_droplet(
-                config_file=args.cloud_config,
                 port=args.port,
                 name=args.name,
                 region=args.region,
                 size=args.size,
                 ssh_keys=args.ssh_keys,
+                private_key=args.private_key,
                 output=args.output,
             )
 
@@ -272,13 +270,6 @@ if __name__ == "__main__":
 
     createparser = subparsers.add_parser("create")
     createparser.add_argument(
-        "-c",
-        "--cloud-config",
-        required=False,
-        default="cloud_config.yml",
-        help="The cloud-config file to use [default: cloud_config.yml]",
-    )
-    createparser.add_argument(
         "-r",
         "--region",
         required=False,
@@ -299,6 +290,12 @@ if __name__ == "__main__":
         required=True,
         nargs="+",
         help="Add SSH key(s) present in the DigitalOcean account store (ID or thumbprint)",
+    )
+    createparser.add_argument(
+        "-pk",
+        "--private-key",
+        required=True,
+        help="SSH private key to use when authenticating to Droplet",
     )
     createparser.add_argument(
         "-p", "--port", required=False, default="42069", help="Port to use for WireGuard [default: 42069]"
