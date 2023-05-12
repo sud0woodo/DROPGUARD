@@ -7,6 +7,7 @@ WireGuard configuration based on: https://popovy.ch/blog/wireguard-vpn-server-wi
 import argparse
 import json
 import logging
+import os
 import re
 import time
 
@@ -20,15 +21,12 @@ EXAMPLE = """Example usage:\n\n
 List the available regions:
 \tpython dropguard.py list --list-regions\n
 Create a WireGuard VPN droplet with the name 'dropguard', adding SSH key with ID '12345678':
-\tpython dropguard.py create --name dropguard --ssh-keys 12345678\n
+\tpython dropguard.py create --name dropguard --ssh-keys 12345678 --private-key ~/.ssh/your_private_key\n
 Create a WireGuard VPN droplet with the name 'dropguard', adding SSH key with ID '12345678' in region Frankfurt:
-\tpython dropguard.py create --name dropguard --ssh-keys 12345678 --region fra1
+\tpython dropguard.py create --name dropguard --ssh-keys 12345678 --private-key ~/.ssh/your_private_key --region fra1
 """
 
-# Set this as "Bearer DIGITALOCEAN_TOKEN"
-TOKEN = "Bearer DIGITALOCEAN_TOKEN"
-
-HEADERS = {"Authorization": TOKEN, "Content-Type": "application/json"}
+HEADERS = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
 
 BASE_URL = "https://api.digitalocean.com"
 REGIONS_URL = "/v2/regions"
@@ -42,6 +40,13 @@ FINISHED_PATTERN = re.compile("Cloud-init.+finished at")
 
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
+
+# Set this as "Bearer DIGITALOCEAN_TOKEN"
+try:
+    TOKEN = os.environ["DO_TOKEN"]
+except KeyError:
+    logging.error("Please set your DigitalOcean token as an environment variable: `export DO_TOKEN=drop_v1_12345678`")
+    exit(1)
 
 
 class DigitalOceanError(Exception):
