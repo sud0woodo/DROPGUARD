@@ -26,7 +26,7 @@ Create a WireGuard VPN droplet with the name 'dropguard', adding SSH key with ID
 """
 
 # Set this as "Bearer DIGITALOCEAN_TOKEN"
-TOKEN = "Bearer dop_v1_d10f0247a18e89dfd82a2913a42dfd1129620c36c57bdbfac6c90971b13961ba"
+TOKEN = "Bearer DIGITALOCEAN_TOKEN"
 
 HEADERS = {"Authorization": TOKEN, "Content-Type": "application/json"}
 
