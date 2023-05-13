@@ -18,10 +18,10 @@ Install the following Python packages before running the script:
 pip install httpx paramiko scp
 ```
 
-Add the DigitalOcean token:
+Add the DigitalOcean token to your environment variables:
 
-```python
-TOKEN = "Bearer <YOUR TOKEN>"
+```sh
+export DO_TOKEN=drop_v1_12345678
 ```
 
 ## Usage
@@ -42,19 +42,19 @@ options:
 List the available commands for creating a new `DigitalOcean` Droplet and `WireGuard` VPN:
 
 ```sh
-python3 dropguard.py create --help                                                                                                                                   [0:34:40]
-usage: dropguard.py create [-h] [-c CLOUD_CONFIG] [-r REGION] -n NAME [-s SIZE] -k SSH_KEYS [SSH_KEYS ...] [-p PORT] [-o OUTPUT]
+$ python dropguard.py create --help                                                                                                       [13:03:47]
+usage: dropguard.py create [-h] [-r REGION] -n NAME [-s SIZE] -k SSH_KEYS [SSH_KEYS ...] -pk PRIVATE_KEY [-p PORT] [-o OUTPUT]
 
 options:
   -h, --help            show this help message and exit
-  -c CLOUD_CONFIG, --cloud-config CLOUD_CONFIG
-                        The cloud-config file to use [default: cloud_config.yml]
   -r REGION, --region REGION
                         Region to create the droplet in [default: Frankfurt 1 (fra1)]
   -n NAME, --name NAME  Droplet name
   -s SIZE, --size SIZE  Size of the droplet to create [default: s-1vcpu-512mb-10gb]
   -k SSH_KEYS [SSH_KEYS ...], --ssh-keys SSH_KEYS [SSH_KEYS ...]
                         Add SSH key(s) present in the DigitalOcean account store (ID or thumbprint)
+  -pk PRIVATE_KEY, --private-key PRIVATE_KEY
+                        SSH private key to use when authenticating to Droplet
   -p PORT, --port PORT  Port to use for WireGuard [default: 42069]
   -o OUTPUT, --output OUTPUT
                         Filename to save WireGuard config to [default: dropguard.conf]
@@ -70,5 +70,5 @@ Example usage:
         python dropguard.py create --name dropguard --ssh-keys 12345678
 
 # Create a WireGuard VPN droplet with the name 'dropguard', adding SSH key with ID '12345678' in region Frankfurt:
-        python dropguard.py create --name dropguard --ssh-keys 12345678 --region fra1
+        python dropguard.py create --name dropguard --ssh-keys 12345678 --private-key ~/.ssh/your_private_key --region fra1
 ```
