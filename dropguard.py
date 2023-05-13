@@ -26,6 +26,17 @@ Create a WireGuard VPN droplet with the name 'dropguard', adding SSH key with ID
 \tpython dropguard.py create --name dropguard --ssh-keys 12345678 --private-key ~/.ssh/your_private_key --region fra1
 """
 
+
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
+
+# Set this as "Bearer DIGITALOCEAN_TOKEN"
+try:
+    TOKEN = os.environ["DO_TOKEN"]
+except KeyError:
+    logging.error("Please set your DigitalOcean token as an environment variable: `export DO_TOKEN=drop_v1_12345678`")
+    exit(1)
+
+
 HEADERS = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
 
 BASE_URL = "https://api.digitalocean.com"
@@ -37,16 +48,6 @@ DROPLET_URL = "/v2/droplets"
 DROPLET_CONFIGS = ["s-1vcpu-512mb-10gb", "s-1vcpu-1gb"]
 
 FINISHED_PATTERN = re.compile("Cloud-init.+finished at")
-
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-
-# Set this as "Bearer DIGITALOCEAN_TOKEN"
-try:
-    TOKEN = os.environ["DO_TOKEN"]
-except KeyError:
-    logging.error("Please set your DigitalOcean token as an environment variable: `export DO_TOKEN=drop_v1_12345678`")
-    exit(1)
 
 
 class DigitalOceanError(Exception):
